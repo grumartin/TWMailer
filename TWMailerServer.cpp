@@ -264,7 +264,6 @@ void* clientCommunication(void* data)
             msg.push_back(line);
         }
         
-
         if(msg[0] =="SEND"){
             cout << "SEND" << endl;
             if(saveMessage(msg) == -1)

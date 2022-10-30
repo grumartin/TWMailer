@@ -95,22 +95,49 @@ int main(int argc, char **argv)
       string input = "";
       string line = "";
 
-         
-      while (getline(cin, line))
-      {
-         if("QUIT" == line){
-            isQuit = true;
+      getline(cin, line);
+      
+      
+      if("QUIT" == line){
+         isQuit = true;
+         input += line;
+         break;
+      }
+
+      else if("SEND" == line){
+         line += "\n";
+         input += line;
+         while(line!=".\n"){
+            printf(">> ");
+            getline(cin, line);
+            line += "\n";
             input += line;
-            break;
          }
+         system("clear");
+      }
+
+      else if("LIST" == line){
+         line += "\n";
+         input += line;
          printf(">> ");
-         if ("." == line){
-            system("clear");
-            break;
-         }
+         getline(cin, line);
          line += "\n";
          input += line;
       }
+
+      else if("READ" == line || "DEL" == line){
+         line += "\n";
+         input += line;
+         printf(">> ");
+         getline(cin, line);
+         line += "\n";
+         input += line;
+         printf(">> ");
+         getline(cin, line);
+         line += "\n";
+         input += line;
+      }
+
       // remove new-line signs from string at the end
 
       //convert string to char*
