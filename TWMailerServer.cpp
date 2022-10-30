@@ -278,6 +278,7 @@ void* clientCommunication(void* data)
         }else if(msg[0] =="DEL"){
             delMessage(msg, current_socket);
         }else if(msg[0] =="QUIT"){
+            printf("Client closed connection\n");
         }else{
             sendMessage(current_socket, "Wrong Command, try again!");
         }

@@ -95,93 +95,97 @@ int main(int argc, char **argv)
       string input = "";
       string line = "";
 
-   
-      if("Quit" == input || "quit" == input || "QUIT" == input){
-         isQuit = true;
-         break;
-      }
-      else{
-         while (getline(cin, line))
-         {
-            printf(">> ");
-            if ("." == line){
-               system("clear");
-               break;
-            }
-            line += "\n";
-            input += line;
-         }
-         // remove new-line signs from string at the end
-
-         //convert string to char*
-         const char* inp_str_const = input.c_str();
-         char* inp_str = new char[sizeof(inp_str_const)];
-         strcpy(inp_str, inp_str_const);
          
-         int size = strlen(inp_str);
+      while (getline(cin, line))
+      {
+         if("QUIT" == line){
+            isQuit = true;
+            input += line;
+            break;
+         }
+         printf(">> ");
+         if ("." == line){
+            system("clear");
+            break;
+         }
+         line += "\n";
+         input += line;
+      }
+      // remove new-line signs from string at the end
+
+      //convert string to char*
+      const char* inp_str_const = input.c_str();
+      char* inp_str = new char[sizeof(inp_str_const)];
+      strcpy(inp_str, inp_str_const);
+      
+      int size = strlen(inp_str);
 
 
 /*
-         if (inp_str[size - 2] == '\r' && inp_str[size - 1] == '\n')
-         {
-            size -= 2;
-            inp_str[size] = 0;
-         }
-         else if (inp_str[size - 1] == '\n')
-         {
-            --size;
-            inp_str[size] = 0;
-         }
+      if (inp_str[size - 2] == '\r' && inp_str[size - 1] == '\n')
+      {
+         size -= 2;
+         inp_str[size] = 0;
+      }
+      else if (inp_str[size - 1] == '\n')
+      {
+         --size;
+         inp_str[size] = 0;
+      }
 */
 
-         //////////////////////////////////////////////////////////////////////
-         // SEND DATA
-         // https://man7.org/linux/man-pages/man2/send.2.html
-         // send will fail if connection is closed, but does not set
-         // the error of send, but still the count of bytes sent
-         if ((send(create_socket, inp_str, size, 0)) == -1) 
-         {
-            // in case the server is gone offline we will still not enter
-            // this part of code: see docs: https://linux.die.net/man/3/send
-            // >> Successful completion of a call to send() does not guarantee 
-            // >> delivery of the message. A return value of -1 indicates only 
-            // >> locally-detected errors.
-            // ... but
-            // to check the connection before send is sense-less because
-            // after checking the communication can fail (so we would need
-            // to have 1 atomic operation to check...)
-            perror("send error");
-            break;
-         }
+      //////////////////////////////////////////////////////////////////////
+      // SEND DATA
+      // https://man7.org/linux/man-pages/man2/send.2.html
+      // send will fail if connection is closed, but does not set
+      // the error of send, but still the count of bytes sent
+      if ((send(create_socket, inp_str, size, 0)) == -1) 
+      {
+         // in case the server is gone offline we will still not enter
+         // this part of code: see docs: https://linux.die.net/man/3/send
+         // >> Successful completion of a call to send() does not guarantee 
+         // >> delivery of the message. A return value of -1 indicates only 
+         // >> locally-detected errors.
+         // ... but
+         // to check the connection before send is sense-less because
+         // after checking the communication can fail (so we would need
+         // to have 1 atomic operation to check...)
+         perror("send error");
+         break;
+      }
 
-         //////////////////////////////////////////////////////////////////////
-         // RECEIVE FEEDBACK
-         // consider: reconnect handling might be appropriate in somes cases
-         //           How can we determine that the command sent was received 
-         //           or not? 
-         //           - Resend, might change state too often. 
-         //           - Else a command might have been lost.
-         //
-         // solution 1: adding meta-data (unique command id) and check on the
-         //             server if already processed.
-         // solution 2: add an infrastructure component for messaging (broker)
-         //
-         size = recv(create_socket, buffer, BUF - 1, 0);
-         if (size == -1)
-         {
-            perror("recv error");
-            break;
-         }
-         else if (size == 0)
-         {
-            printf("Server closed remote socket\n"); // ignore error
-            break;
-         }
-         else
-         {
-            buffer[size] = '\0';
-            printf("<< %s\n", buffer); // ignore error
-         }
+
+      if(isQuit == true){
+         break;
+      }
+
+      //////////////////////////////////////////////////////////////////////
+      // RECEIVE FEEDBACK
+      // consider: reconnect handling might be appropriate in somes cases
+      //           How can we determine that the command sent was received 
+      //           or not? 
+      //           - Resend, might change state too often. 
+      //           - Else a command might have been lost.
+      //
+      // solution 1: adding meta-data (unique command id) and check on the
+      //             server if already processed.
+      // solution 2: add an infrastructure component for messaging (broker)
+      //
+      size = recv(create_socket, buffer, BUF - 1, 0);
+      if (size == -1)
+      {
+         perror("recv error");
+         break;
+      }
+      else if (size == 0)
+      {
+         printf("Server closed remote socket\n"); // ignore error
+         break;
+      }
+      else
+      {
+         buffer[size] = '\0';
+         printf("<< %s\n", buffer); // ignore error
       }
    } while (isQuit != true);
 
