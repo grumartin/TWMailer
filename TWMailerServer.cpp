@@ -281,6 +281,8 @@ void* clientCommunication(void* data)
         }else{
             sendMessage(current_socket, "Wrong Command, try again!");
         }
+
+        
     } while (strcmp(buffer, "quit") != 0 && !abortRequested);
 
     // closes/frees the descriptor if not already

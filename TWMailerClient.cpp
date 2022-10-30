@@ -94,9 +94,11 @@ int main(int argc, char **argv)
       printf(">> ");
       string input = "";
       string line = "";
+
    
-      if("Quit" == input || "quit" == input){
+      if("Quit" == input || "quit" == input || "QUIT" == input){
          isQuit = true;
+         break;
       }
       else{
          while (getline(cin, line))
