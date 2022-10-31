@@ -307,7 +307,8 @@ int saveMessage(vector<string> msg){
     char cdir[256];
     getcwd(cdir, 256);
     char tmp_dir[256];
-    strcat(tmp_dir, cdir);
+    getcwd(tmp_dir, 256);
+    //strcat(tmp_dir, cdir);
     //change directory to given path
     chdir(dirname.c_str());
 
@@ -372,6 +373,10 @@ void readMessage(vector<string> msg, int* socket){
     string fileText;
     strcat(dir, dirname.c_str());
     strcat(dir, "/");
+
+    char tempDir[256]= "";
+    getcwd(tempDir, 256);       //get current working directory, so after reading message, we can go back to base wd
+
     strcat(dir, msg[1].c_str());
     strcat(dir, "/");
 
@@ -405,6 +410,10 @@ void readMessage(vector<string> msg, int* socket){
         }
         
         closedir(directory);
+        
+        chdir(tempDir);             //change back to working directory
+        getcwd(tempDir, 256);
+
     }else{
         cerr << "Error opening directory" << endl;
         sendMessage(socket, "ERR");
@@ -413,17 +422,24 @@ void readMessage(vector<string> msg, int* socket){
 
 void delMessage(vector<string> msg, int* socket){
     char dir[256] = "";
+
+    char tempDir[256]= "";
+    getcwd(tempDir, 256);
+
     strcat(dir, dirname.c_str());
     strcat(dir, "/");
     strcat(dir, msg[1].c_str());
     strcat(dir, "/");
     chdir(dir);
 
+    msg[2] += ".txt";
+
     if(remove(msg[2].c_str()) == 0){
         sendMessage(socket, "OK");
     }else{
         sendMessage(socket, "ERR");
     }
+    chdir(tempDir);
 }
 
 void signalHandler(int sig)

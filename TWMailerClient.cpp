@@ -214,6 +214,7 @@ int main(int argc, char **argv)
          buffer[size] = '\0';
          printf("<< %s\n", buffer); // ignore error
       }
+
    } while (isQuit != true);
 
    ////////////////////////////////////////////////////////////////////////////
