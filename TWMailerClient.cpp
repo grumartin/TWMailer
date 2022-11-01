@@ -95,7 +95,7 @@ int main(int argc, char **argv)
       string input = "";
       string line = "";
 
-      getline(cin, line);
+      getline(cin, line);  //get command
       
       
       if("QUIT" == line){
@@ -138,11 +138,9 @@ int main(int argc, char **argv)
          input += line;
       }
 
-      // remove new-line signs from string at the end
-
       //convert string to char*
       const char* inp_str_const = input.c_str();
-      char* inp_str = new char[sizeof(inp_str_const)];
+      char* inp_str = new char[sizeof(inp_str_const) + 100];
       strcpy(inp_str, inp_str_const);
       
       int size = strlen(inp_str);

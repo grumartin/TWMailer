@@ -177,7 +177,7 @@ int main(int argc, char** argv)
     return EXIT_SUCCESS;
 }
 
-void * s_threading(void* arg){
+void * s_threading(void* arg){      //create thread for each client
     cout << "A Client connected to the server!" << endl;
     int clientfd = *((int*)arg);
     pthread_detach(pthread_self());
@@ -188,7 +188,7 @@ void * s_threading(void* arg){
     return nullptr;
 }
 
-void sendMessage(int* socket, const char* msg){
+void sendMessage(int* socket, const char* msg){     //send message to client
     if (send(*socket, msg, strlen(msg), 0) == -1)
     {
         perror("Message send failed!");
@@ -203,7 +203,7 @@ void* clientCommunication(void* data)
 
     ////////////////////////////////////////////////////////////////////////////
     // SEND welcome message
-    strcpy(buffer, "Welcome to TWMailer!\r\nPlease enter your commands...\r\n");
+    strcpy(buffer, "Welcome to TWMailer!\r\nPlease enter one of the following commands:\r\n--> SEND \r\n--> LIST \r\n--> READ (Type in the Subject instead of the Message-Number) \r\n--> DEL (Subject instead of Message-Number) \r\n--> QUIT \r\n");
     if (send(*current_socket, buffer, strlen(buffer), 0) == -1)
     {
         perror("send failed");
@@ -245,7 +245,7 @@ void* clientCommunication(void* data)
         }
 
         buffer[size] = '\0';
-        printf("Message received: %s\n", buffer); // ignore error
+        //printf("Message received: %s\n", buffer); // ignore error
 
         /*
         if (send(*current_socket, "OK", 3, 0) == -1)
@@ -259,13 +259,12 @@ void* clientCommunication(void* data)
         stringstream ss;
         ss << buffer << "\n";
 
-        while (getline(ss, line))
+        while (getline(ss, line))       //save msg in vector
         {
             msg.push_back(line);
         }
         
-        if(msg[0] =="SEND"){
-            cout << "SEND" << endl;
+        if(msg[0] =="SEND"){        //execute functions for each command
             if(saveMessage(msg) == -1)
                 sendMessage(current_socket, "ERR");
             else
@@ -318,12 +317,14 @@ int saveMessage(vector<string> msg){
     //get current working directory
     getcwd(cdir, 256);
     
+    //create path
     strcat(cdir, "/");
     strcat(cdir, msg[2].c_str());
     strcat(cdir, "/");
 
     chdir(cdir);
 
+    //save message in new file
     ofstream newFile(msg[3] + ".txt");
     newFile << msg[1] << "\n" << msg[2] << "\n" << msg[3] << "\n" << msg[4];
     newFile.close(); 
@@ -335,7 +336,8 @@ vector<string> listFiles(char* directory){
     DIR *dir;
     struct dirent *file;
     vector<string> files;
-
+    
+    //get all filenames from given directory and copy them into vector
     if ((dir = opendir(directory)) != NULL) {
         while ((file = readdir(dir)) != NULL) {
             if(strcmp(file->d_name, ".") != 0 && strcmp(file->d_name, "..") != 0)
@@ -355,10 +357,11 @@ void listMessages(vector<string> msg, int* socket){
     strcat(dir, msg[1].c_str());
     strcat(dir, "/");
 
-    vector<string> files = listFiles(dir);
+    vector<string> files = listFiles(dir);      //get filenames
  
     string size = to_string(files.size()) += "\n";
-    sendMessage(socket, size.c_str());
+    //send filenames to client
+    sendMessage(socket, size.c_str());        
     for(string file : files){
         file += "\n";
         sendMessage(socket, file.c_str());
@@ -384,18 +387,17 @@ void readMessage(vector<string> msg, int* socket){
     chdir(dir);
     getcwd(dir, 256);
 
+    //open directory and read file content
     if ((directory = opendir(dir)) != NULL) { 
         while ((file = readdir(directory)) != NULL) {
-            if(strcmp(file->d_name, msg[2].c_str()) == 0){
+            if(strcmp(file->d_name, msg[2].c_str()) == 0){      //compare filenames
                 getcwd(dir, 256);
-                cout << dir << endl;
-                cout << file->d_name << endl; 
                 ifstream newfile;
-                newfile.open(file->d_name, ios::in);
+                newfile.open(file->d_name, ios::in);        //open file 
 
                 if(newfile.is_open()){
                     strcat(response, "OK\n");
-                    while(getline(newfile, fileText)){
+                    while(getline(newfile, fileText)){      //get content from file
                         fileText += "\n";
                         strcat(response, fileText.c_str());
                     }
@@ -426,6 +428,7 @@ void delMessage(vector<string> msg, int* socket){
     char tempDir[256]= "";
     getcwd(tempDir, 256);
 
+    //change to desired directory
     strcat(dir, dirname.c_str());
     strcat(dir, "/");
     strcat(dir, msg[1].c_str());
@@ -433,7 +436,8 @@ void delMessage(vector<string> msg, int* socket){
     chdir(dir);
 
     msg[2] += ".txt";
-
+    
+    //remove file from dir
     if(remove(msg[2].c_str()) == 0){
         sendMessage(socket, "OK");
     }else{
