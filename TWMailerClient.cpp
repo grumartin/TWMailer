@@ -104,6 +104,19 @@ int main(int argc, char **argv)
          break;
       }
 
+      else if("LOGIN" == line){
+         line += "\n";
+         input += line;
+         printf(">> ");
+         getline(cin, line);
+         line += "\n";
+         input += line;
+         printf(">> ");
+         getline(cin, line);
+         line += "\n";
+         input += line;
+      }
+
       else if("SEND" == line){
          line += "\n";
          input += line;
@@ -119,17 +132,9 @@ int main(int argc, char **argv)
       else if("LIST" == line){
          line += "\n";
          input += line;
-         printf(">> ");
-         getline(cin, line);
-         line += "\n";
-         input += line;
       }
 
       else if("READ" == line || "DEL" == line){
-         line += "\n";
-         input += line;
-         printf(">> ");
-         getline(cin, line);
          line += "\n";
          input += line;
          printf(">> ");

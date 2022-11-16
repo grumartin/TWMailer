@@ -1,3 +1,4 @@
+#include <ldap.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -16,6 +17,7 @@
 #include <fstream> 
 #include <dirent.h>
 
+
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,6 +30,8 @@ int abortRequested = 0;
 int create_socket = -1;
 int new_socket = -1;
 string dirname;
+string authenticatedUser;
+int loginAttempts = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +40,11 @@ void signalHandler(int sig);
 void* s_threading(void* arg);
 int saveMessage(vector<string> msg);
 vector<string> listFiles(char* directory);
-void listMessages(vector<string> msg, int* current_socket);
+void listMessages(int* current_socket);
 void readMessage(vector<string> msg, int* socket);
 void delMessage(vector<string> msg, int* socket);
+int authenticateUser(vector<string> msg);
+int ldapAuthentication(const char ldapBindPassword[], const char ldapUser[]);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -263,24 +269,38 @@ void* clientCommunication(void* data)
         {
             msg.push_back(line);
         }
-        
-        if(msg[0] =="SEND"){        //execute functions for each command
-            if(saveMessage(msg) == -1)
-                sendMessage(current_socket, "ERR");
-            else
-                sendMessage(current_socket, "OK");
-        }else if(msg[0] =="LIST"){
-            listMessages(msg, current_socket);
-        }else if(msg[0] =="READ"){
-            readMessage(msg, current_socket);
-        }else if(msg[0] =="DEL"){
-            delMessage(msg, current_socket);
-        }else if(msg[0] =="QUIT"){
-            printf("Client closed connection\n");
-        }else{
-            sendMessage(current_socket, "Wrong Command, try again!");
-        }
 
+        if(authenticatedUser.empty()){
+            if(msg[0] != "QUIT"){
+                printf("Client closed connection\n");
+            }
+
+            if(msg[0] != "LOGIN"){
+                printf("Unauthorized! Login first.");
+            }else{
+                if(authenticateUser(msg) == EXIT_FAILURE)
+                    sendMessage(current_socket, "ERR");
+                else
+                    sendMessage(current_socket, "OK");
+            }   
+        }else{
+            if(msg[0] =="SEND"){        //execute functions for each command
+                if(saveMessage(msg) == -1)
+                    sendMessage(current_socket, "ERR");
+                else
+                    sendMessage(current_socket, "OK");
+            }else if(msg[0] =="LIST"){
+                listMessages(current_socket);
+            }else if(msg[0] =="READ"){
+                readMessage(msg, current_socket);
+            }else if(msg[0] =="DEL"){
+                delMessage(msg, current_socket);
+            }else if(msg[0] =="QUIT"){
+                printf("Client closed connection\n");
+            }else{
+                sendMessage(current_socket, "Wrong Command, try again!");
+            }
+        }
         
     } while (strcmp(buffer, "quit") != 0 && !abortRequested);
 
@@ -312,21 +332,21 @@ int saveMessage(vector<string> msg){
     chdir(dirname.c_str());
 
     //create new directory
-    mkdir(msg[2].c_str(), 0777);
+    mkdir(msg[1].c_str(), 0777);
 
     //get current working directory
     getcwd(cdir, 256);
     
     //create path
     strcat(cdir, "/");
-    strcat(cdir, msg[2].c_str());
+    strcat(cdir, msg[1].c_str());
     strcat(cdir, "/");
 
     chdir(cdir);
 
     //save message in new file
-    ofstream newFile(msg[3] + ".txt");
-    newFile << msg[1] << "\n" << msg[2] << "\n" << msg[3] << "\n" << msg[4];
+    ofstream newFile(msg[2] + ".txt");
+    newFile << msg[1] << "\n" << msg[2] << "\n" << msg[3];
     newFile.close(); 
     chdir(tmp_dir);
     return 1;
@@ -350,11 +370,11 @@ vector<string> listFiles(char* directory){
     return files;
 }
 
-void listMessages(vector<string> msg, int* socket){
+void listMessages(int* socket){
     char dir[256] = "";
     strcat(dir, dirname.c_str());
     strcat(dir, "/");
-    strcat(dir, msg[1].c_str());
+    strcat(dir, authenticatedUser.c_str());
     strcat(dir, "/");
 
     vector<string> files = listFiles(dir);      //get filenames
@@ -380,17 +400,17 @@ void readMessage(vector<string> msg, int* socket){
     char tempDir[256]= "";
     getcwd(tempDir, 256);       //get current working directory, so after reading message, we can go back to base wd
 
-    strcat(dir, msg[1].c_str());
+    strcat(dir, authenticatedUser.c_str());
     strcat(dir, "/");
 
-    msg[2] += ".txt";
+    msg[1] += ".txt";
     chdir(dir);
     getcwd(dir, 256);
 
     //open directory and read file content
     if ((directory = opendir(dir)) != NULL) { 
         while ((file = readdir(directory)) != NULL) {
-            if(strcmp(file->d_name, msg[2].c_str()) == 0){      //compare filenames
+            if(strcmp(file->d_name, msg[1].c_str()) == 0){      //compare filenames
                 getcwd(dir, 256);
                 ifstream newfile;
                 newfile.open(file->d_name, ios::in);        //open file 
@@ -431,14 +451,14 @@ void delMessage(vector<string> msg, int* socket){
     //change to desired directory
     strcat(dir, dirname.c_str());
     strcat(dir, "/");
-    strcat(dir, msg[1].c_str());
+    strcat(dir, authenticatedUser.c_str());
     strcat(dir, "/");
     chdir(dir);
 
     msg[2] += ".txt";
     
     //remove file from dir
-    if(remove(msg[2].c_str()) == 0){
+    if(remove(msg[1].c_str()) == 0){
         sendMessage(socket, "OK");
     }else{
         sendMessage(socket, "ERR");
@@ -487,4 +507,124 @@ void signalHandler(int sig)
     {
         exit(sig);
     }
+}
+
+int authenticateUser(vector<string> msg){
+    if(loginAttempts >= 3){
+        printf("User gets blacklisted!");
+        //blackListUser(); //must be implemented
+        return -1;
+    }
+    loginAttempts++;
+
+    if(msg.size() < 3){
+        printf("Missing information!");
+        return -1;
+    }
+
+    return ldapAuthentication(msg[2].c_str(), msg[1].c_str());
+}
+
+int ldapAuthentication(const char ldapBindPassword[], const char ldapUser[]){
+    // LDAP config
+    const char *ldapUri = "ldap://ldap.technikum-wien.at:389";
+    const int ldapVersion = LDAP_VERSION3;
+
+    //set username
+    char ldapBindUser[256];
+    sprintf(ldapBindUser, "uid=%s,ou=people,dc=technikum-wien,dc=at", ldapUser);
+    printf("user set to: %s\n", ldapBindUser);
+
+    // general
+    int rc = 0; // return code
+
+    ////////////////////////////////////////////////////////////////////////////
+    // setup LDAP connection
+    // https://linux.die.net/man/3/ldap_initialize
+    LDAP *ldapHandle;
+    rc = ldap_initialize(&ldapHandle, ldapUri);
+    if (rc != LDAP_SUCCESS)
+    {
+        fprintf(stderr, "ldap_init failed\n");
+        return -1;
+    }
+    printf("connected to LDAP server %s\n", ldapUri);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // set verison options
+    // https://linux.die.net/man/3/ldap_set_option
+    rc = ldap_set_option(
+        ldapHandle,
+        LDAP_OPT_PROTOCOL_VERSION, // OPTION
+        &ldapVersion);             // IN-Value
+    if (rc != LDAP_OPT_SUCCESS)
+    {
+        // https://www.openldap.org/software/man.cgi?query=ldap_err2string&sektion=3&apropos=0&manpath=OpenLDAP+2.4-Release
+        fprintf(stderr, "ldap_set_option(PROTOCOL_VERSION): %s\n", ldap_err2string(rc));
+        ldap_unbind_ext_s(ldapHandle, NULL, NULL);
+        return EXIT_FAILURE;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // start connection secure (initialize TLS)
+    // https://linux.die.net/man/3/ldap_start_tls_s
+    // int ldap_start_tls_s(LDAP *ld,
+    //                      LDAPControl **serverctrls,
+    //                      LDAPControl **clientctrls);
+    // https://linux.die.net/man/3/ldap
+    // https://docs.oracle.com/cd/E19957-01/817-6707/controls.html
+    //    The LDAPv3, as documented in RFC 2251 - Lightweight Directory Access
+    //    Protocol (v3) (http://www.faqs.org/rfcs/rfc2251.html), allows clients
+    //    and servers to use controls as a mechanism for extending an LDAP
+    //    operation. A control is a way to specify additional information as
+    //    part of a request and a response. For example, a client can send a
+    //    control to a server as part of a search request to indicate that the
+    //    server should sort the search results before sending the results back
+    //    to the client.
+    rc = ldap_start_tls_s(
+        ldapHandle,
+        NULL,
+        NULL);
+    if (rc != LDAP_SUCCESS)
+    {
+        fprintf(stderr, "ldap_start_tls_s(): %s\n", ldap_err2string(rc));
+        ldap_unbind_ext_s(ldapHandle, NULL, NULL);
+        return EXIT_FAILURE;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // bind credentials
+    // https://linux.die.net/man/3/lber-types
+    // SASL (Simple Authentication and Security Layer)
+    // https://linux.die.net/man/3/ldap_sasl_bind_s
+    // int ldap_sasl_bind_s(
+    //       LDAP *ld,
+    //       const char *dn,
+    //       const char *mechanism,
+    //       struct berval *cred,
+    //       LDAPControl *sctrls[],
+    //       LDAPControl *cctrls[],
+    //       struct berval **servercredp);
+
+    BerValue bindCredentials;
+    bindCredentials.bv_val = (char *)ldapBindPassword;
+    bindCredentials.bv_len = strlen(ldapBindPassword);
+    BerValue *servercredp; // server's credentials
+    rc = ldap_sasl_bind_s(
+        ldapHandle,
+        ldapBindUser,
+        LDAP_SASL_SIMPLE,
+        &bindCredentials,
+        NULL,
+        NULL,
+        &servercredp);
+    if (rc != LDAP_SUCCESS)
+    {
+        fprintf(stderr, "LDAP bind error: %s\n", ldap_err2string(rc));
+        ldap_unbind_ext_s(ldapHandle, NULL, NULL);
+        return EXIT_FAILURE;
+    }
+
+    authenticatedUser = ldapUser;
+    return EXIT_SUCCESS;
 }
